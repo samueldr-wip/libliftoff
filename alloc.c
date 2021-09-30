@@ -154,7 +154,7 @@ plane_step_init_next(struct alloc_step *step, struct alloc_step *prev,
 
 	zpos_prop = NULL;
 	if (layer != NULL) {
-		zpos_prop = layer_get_property(layer, "zpos");
+		zpos_prop = layer_get_core_property(layer, LIFTOFF_PROP_ZPOS);
 	}
 	if (zpos_prop != NULL && plane->type != DRM_PLANE_TYPE_PRIMARY) {
 		step->last_layer_zpos = zpos_prop->value;
@@ -204,7 +204,7 @@ has_composited_layer_over(struct liftoff_output *output,
 	struct liftoff_layer *other_layer;
 	struct liftoff_layer_property *zpos_prop, *other_zpos_prop;
 
-	zpos_prop = layer_get_property(layer, "zpos");
+	zpos_prop = layer_get_core_property(layer, LIFTOFF_PROP_ZPOS);
 	if (zpos_prop == NULL) {
 		return false;
 	}
@@ -214,7 +214,8 @@ has_composited_layer_over(struct liftoff_output *output,
 			continue;
 		}
 
-		other_zpos_prop = layer_get_property(other_layer, "zpos");
+		other_zpos_prop = layer_get_core_property(other_layer,
+							  LIFTOFF_PROP_ZPOS);
 		if (other_zpos_prop == NULL) {
 			continue;
 		}
@@ -237,7 +238,7 @@ has_allocated_layer_over(struct liftoff_output *output, struct alloc_step *step,
 	struct liftoff_layer *other_layer;
 	struct liftoff_layer_property *zpos_prop, *other_zpos_prop;
 
-	zpos_prop = layer_get_property(layer, "zpos");
+	zpos_prop = layer_get_core_property(layer, LIFTOFF_PROP_ZPOS);
 	if (zpos_prop == NULL) {
 		return false;
 	}
@@ -257,7 +258,8 @@ has_allocated_layer_over(struct liftoff_output *output, struct alloc_step *step,
 			continue;
 		}
 
-		other_zpos_prop = layer_get_property(other_layer, "zpos");
+		other_zpos_prop = layer_get_core_property(other_layer,
+							  LIFTOFF_PROP_ZPOS);
 		if (other_zpos_prop == NULL) {
 			continue;
 		}
@@ -320,7 +322,7 @@ check_layer_plane_compatible(struct alloc_step *step,
 		return false;
 	}
 
-	zpos_prop = layer_get_property(layer, "zpos");
+	zpos_prop = layer_get_core_property(layer, LIFTOFF_PROP_ZPOS);
 	if (zpos_prop != NULL) {
 		if ((int)zpos_prop->value > step->last_layer_zpos &&
 		    has_allocated_layer_over(output, step, layer)) {
@@ -644,7 +646,7 @@ layer_needs_realloc(struct liftoff_layer *layer, struct liftoff_output *output)
 		 * If FB_ID changes from non-zero to non-zero and the FB
 		 * attributes didn't change, we can try to re-use the previous
 		 * allocation. */
-		if (strcmp(prop->name, "FB_ID") == 0) {
+		if (prop->core_index == LIFTOFF_PROP_FB_ID) {
 			if (prop->value == 0 && prop->prev_value == 0) {
 				continue;
 			}
@@ -674,7 +676,7 @@ layer_needs_realloc(struct liftoff_layer *layer, struct liftoff_output *output)
 		/* If the layer was or becomes completely transparent or
 		 * completely opaque, we might be able to find a better
 		 * allocation. Otherwise, we can keep the current one. */
-		if (strcmp(prop->name, "alpha") == 0) {
+		if (prop->core_index == LIFTOFF_PROP_ALPHA) {
 			if (prop->value == 0 || prop->prev_value == 0 ||
 			    prop->value == 0xFFFF || prop->prev_value == 0xFFFF) {
 				liftoff_log(LIFTOFF_DEBUG, "Cannot re-use previous allocation: "
@@ -750,8 +752,8 @@ layer_is_higher_priority(struct liftoff_layer *this, struct liftoff_layer *other
 	// overall priority, since the top layer needs to be offloaded in order
 	// to offload the bottom layer.
 
-	this_zpos = layer_get_property(this, "zpos");
-	other_zpos = layer_get_property(other, "zpos");
+	this_zpos = layer_get_core_property(this, LIFTOFF_PROP_ZPOS);
+	other_zpos = layer_get_core_property(other, LIFTOFF_PROP_ZPOS);
 	intersects = layer_intersects(this, other);
 
 	if (this_zpos != NULL && other_zpos != NULL) {

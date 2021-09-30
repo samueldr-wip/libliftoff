@@ -10,6 +10,7 @@ struct liftoff_layer *
 liftoff_layer_create(struct liftoff_output *output)
 {
 	struct liftoff_layer *layer;
+	size_t i;
 
 	layer = calloc(1, sizeof(*layer));
 	if (layer == NULL) {
@@ -23,6 +24,9 @@ liftoff_layer_create(struct liftoff_output *output)
 		liftoff_log_errno(LIFTOFF_ERROR, "calloc");
 		free(layer);
 		return NULL;
+	}
+	for (i = 0; i < LIFTOFF_PROP_LAST; i++) {
+		layer->core_props[i] = -1;
 	}
 	liftoff_list_insert(output->layers.prev, &layer->link);
 	output->layers_changed = true;
@@ -50,9 +54,27 @@ liftoff_layer_destroy(struct liftoff_layer *layer)
 }
 
 struct liftoff_layer_property *
+layer_get_core_property(struct liftoff_layer *layer, enum liftoff_core_property prop)
+{
+	ssize_t i;
+
+	i = layer->core_props[prop];
+	if (i < 0) {
+		return NULL;
+	}
+	return &layer->props[i];
+}
+
+struct liftoff_layer_property *
 layer_get_property(struct liftoff_layer *layer, const char *name)
 {
+	ssize_t core_prop_idx;
 	size_t i;
+
+	core_prop_idx = core_property_index(name);
+	if (core_prop_idx >= 0) {
+		return layer_get_core_property(layer, core_prop_idx);
+	}
 
 	for (i = 0; i < layer->props_len; i++) {
 		if (strcmp(layer->props[i].name, name) == 0) {
@@ -68,6 +90,7 @@ liftoff_layer_set_property(struct liftoff_layer *layer, const char *name,
 {
 	struct liftoff_layer_property *props;
 	struct liftoff_layer_property *prop;
+	size_t i;
 
 	if (strcmp(name, "CRTC_ID") == 0) {
 		liftoff_log(LIFTOFF_ERROR,
@@ -86,16 +109,22 @@ liftoff_layer_set_property(struct liftoff_layer *layer, const char *name,
 		layer->props = props;
 		layer->props_len++;
 
-		prop = &layer->props[layer->props_len - 1];
+		i = layer->props_len - 1;
+		prop = &layer->props[i];
 		*prop = (struct liftoff_layer_property){0};
 		strncpy(prop->name, name, sizeof(prop->name) - 1);
+		prop->core_index = core_property_index(name);
 
 		layer->changed = true;
+
+		if (prop->core_index >= 0) {
+			layer->core_props[prop->core_index] = (ssize_t)i;
+		}
 	}
 
 	prop->value = value;
 
-	if (strcmp(name, "FB_ID") == 0 && layer->force_composition) {
+	if (prop->core_index == LIFTOFF_PROP_FB_ID && layer->force_composition) {
 		layer->force_composition = false;
 		layer->changed = true;
 	}
@@ -113,9 +142,16 @@ liftoff_layer_unset_property(struct liftoff_layer *layer, const char *name)
 		return;
 	}
 
+	if (prop->core_index >= 0) {
+		layer->core_props[prop->core_index] = -1;
+	}
+
 	last = &layer->props[layer->props_len - 1];
 	if (prop != last) {
 		*prop = *last;
+		if (last->core_index >= 0) {
+			layer->core_props[last->core_index] = prop - layer->props;
+		}
 	}
 	*last = (struct liftoff_layer_property){0};
 	layer->props_len--;
@@ -156,10 +192,10 @@ layer_get_rect(struct liftoff_layer *layer, struct liftoff_rect *rect)
 {
 	struct liftoff_layer_property *x_prop, *y_prop, *w_prop, *h_prop;
 
-	x_prop = layer_get_property(layer, "CRTC_X");
-	y_prop = layer_get_property(layer, "CRTC_Y");
-	w_prop = layer_get_property(layer, "CRTC_W");
-	h_prop = layer_get_property(layer, "CRTC_H");
+	x_prop = layer_get_core_property(layer, LIFTOFF_PROP_CRTC_X);
+	y_prop = layer_get_core_property(layer, LIFTOFF_PROP_CRTC_Y);
+	w_prop = layer_get_core_property(layer, LIFTOFF_PROP_CRTC_W);
+	h_prop = layer_get_core_property(layer, LIFTOFF_PROP_CRTC_H);
 
 	rect->x = x_prop != NULL ? x_prop->value : 0;
 	rect->y = y_prop != NULL ? y_prop->value : 0;
@@ -172,10 +208,10 @@ layer_get_prev_rect(struct liftoff_layer *layer, struct liftoff_rect *rect)
 {
 	struct liftoff_layer_property *x_prop, *y_prop, *w_prop, *h_prop;
 
-	x_prop = layer_get_property(layer, "CRTC_X");
-	y_prop = layer_get_property(layer, "CRTC_Y");
-	w_prop = layer_get_property(layer, "CRTC_W");
-	h_prop = layer_get_property(layer, "CRTC_H");
+	x_prop = layer_get_core_property(layer, LIFTOFF_PROP_CRTC_X);
+	y_prop = layer_get_core_property(layer, LIFTOFF_PROP_CRTC_Y);
+	w_prop = layer_get_core_property(layer, LIFTOFF_PROP_CRTC_W);
+	h_prop = layer_get_core_property(layer, LIFTOFF_PROP_CRTC_H);
 
 	rect->x = x_prop != NULL ? x_prop->prev_value : 0;
 	rect->y = y_prop != NULL ? y_prop->prev_value : 0;
@@ -236,7 +272,7 @@ layer_update_priority(struct liftoff_layer *layer, bool make_current)
 	struct liftoff_layer_property *prop;
 
 	/* TODO: also bump priority when updating other properties */
-	prop = layer_get_property(layer, "FB_ID");
+	prop = layer_get_core_property(layer, LIFTOFF_PROP_FB_ID);
 	if (prop != NULL && prop->prev_value != prop->value) {
 		layer->pending_priority++;
 	}
@@ -253,7 +289,7 @@ layer_has_fb(struct liftoff_layer *layer)
 {
 	struct liftoff_layer_property *fb_id_prop;
 
-	fb_id_prop = layer_get_property(layer, "FB_ID");
+	fb_id_prop = layer_get_core_property(layer, LIFTOFF_PROP_FB_ID);
 	return fb_id_prop != NULL && fb_id_prop->value != 0;
 }
 
@@ -262,7 +298,7 @@ layer_is_visible(struct liftoff_layer *layer)
 {
 	struct liftoff_layer_property *alpha_prop;
 
-	alpha_prop = layer_get_property(layer, "alpha");
+	alpha_prop = layer_get_core_property(layer, LIFTOFF_PROP_ALPHA);
 	if (alpha_prop != NULL && alpha_prop->value == 0) {
 		return false; /* fully transparent */
 	}
@@ -282,7 +318,7 @@ layer_cache_fb_info(struct liftoff_layer *layer)
 	size_t i, j, num_planes;
 	int ret;
 
-	fb_id_prop = layer_get_property(layer, "FB_ID");
+	fb_id_prop = layer_get_core_property(layer, LIFTOFF_PROP_FB_ID);
 	if (fb_id_prop == NULL || fb_id_prop->value == 0) {
 		layer->fb_info = (drmModeFB2){0};
 		return 0;
