@@ -104,6 +104,9 @@ output_log_layers(struct liftoff_output *output)
 						   " (composition layer)" : "");
 		}
 
+		liftoff_log(LIFTOFF_DEBUG, "    Priority = %"PRIi32,
+			    layer->current_priority);
+
 		for (i = 0; i < layer->props_len; i++) {
 			char *name = layer->props[i].name;
 			uint64_t value = layer->props[i].value;

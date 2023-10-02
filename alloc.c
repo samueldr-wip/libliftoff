@@ -655,6 +655,99 @@ layer_needs_realloc(struct liftoff_layer *layer)
 	return false;
 }
 
+static bool
+layer_is_higher_priority(struct liftoff_layer *this, struct liftoff_layer *other)
+{
+	struct liftoff_layer_property *this_zpos, *other_zpos;
+	bool this_visible, other_visible, intersects;
+
+	// The composition layer should be highest priority.
+	if (this->output->composition_layer == this) {
+		return true;
+	} else if (this->output->composition_layer == other) {
+		return false;
+	}
+
+	// Invisible layers are given lowest priority. Pass-thru if both have
+	// same visibility
+	this_visible = layer_is_visible(this);
+	other_visible = layer_is_visible(other);
+	if (this_visible != other_visible) {
+		return this_visible;
+	}
+
+	// A layer's overall priority is determined by a combination of it's
+	// current_priority, it's zpos, and whether it intersects with others.
+	//
+	// Consider two layers. If they do not intersect, the layer with higher
+	// priority is given overall priority. However if both layers have
+	// identical priority, then the layer with higher zpos is given overall
+	// priority.
+	//
+	// If the layers intersect, their zpos determines the overall priority.
+	// If their zpos are identical, then simply fallback to looking at
+	// current_priority. Otherwise, the layer with higher zpos is given
+	// overall priority, since the top layer needs to be offloaded in order
+	// to offload the bottom layer.
+
+	this_zpos = layer_get_property(this, "zpos");
+	other_zpos = layer_get_property(other, "zpos");
+	intersects = layer_intersects(this, other);
+
+	if (this_zpos != NULL && other_zpos != NULL) {
+		if (intersects) {
+			return this_zpos->value == other_zpos->value ?
+			       this->current_priority > other->current_priority :
+			       this_zpos->value > other_zpos->value;
+		} else {
+			return this->current_priority == other->current_priority ?
+			       this_zpos->value > other_zpos->value :
+			       this->current_priority > other->current_priority;
+		}
+	} else if (this_zpos == NULL && other_zpos == NULL) {
+		return this->current_priority > other->current_priority;
+	} else {
+		// Either this or other zpos is null
+		return this_zpos != NULL;
+	}
+}
+
+static bool
+update_layers_order(struct liftoff_output *output)
+{
+	struct liftoff_list *search, *max, *cur, *head;
+	struct liftoff_layer *this_layer, *other_layer;
+	bool order_changed = false;
+
+	head = &output->layers;
+	cur = head;
+
+	// Run a insertion sort to order layers by priority.
+	while (cur->next != head) {
+		cur = cur->next;
+
+		max = cur;
+		search = cur;
+		while (search->next != head) {
+			search = search->next;
+			this_layer = liftoff_container_of(search, this_layer, link);
+			other_layer = liftoff_container_of(max, other_layer, link);
+			if (layer_is_higher_priority(this_layer, other_layer)) {
+				max = search;
+			}
+		}
+
+		if (cur != max) {
+			liftoff_list_swap(cur, max);
+			// max is now where iterator cur was, relocate to continue
+			cur = max;
+			order_changed = true;
+		}
+	}
+
+	return order_changed;
+}
+
 static int
 reuse_previous_alloc(struct liftoff_output *output, drmModeAtomicReq *req,
 		     uint32_t flags)
@@ -662,8 +755,11 @@ reuse_previous_alloc(struct liftoff_output *output, drmModeAtomicReq *req,
 	struct liftoff_device *device;
 	struct liftoff_layer *layer;
 	int cursor, ret;
+	bool layer_order_changed;
 
 	device = output->device;
+
+	layer_order_changed = update_layers_order(output);
 
 	if (output->layers_changed) {
 		liftoff_log(LIFTOFF_DEBUG, "Cannot re-use previous allocation: "
@@ -675,6 +771,12 @@ reuse_previous_alloc(struct liftoff_output *output, drmModeAtomicReq *req,
 		if (layer_needs_realloc(layer)) {
 			return -EINVAL;
 		}
+	}
+
+	if (layer_order_changed) {
+		liftoff_log(LIFTOFF_DEBUG, "Cannot re-use previous allocation: "
+			    "layer priority order changed.");
+		return -EINVAL;
 	}
 
 	cursor = drmModeAtomicGetCursor(req);

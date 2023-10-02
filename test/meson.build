@@ -69,7 +69,7 @@ tests = {
 		'change-fb-damage-clips',
 	],
 	'priority': [
-		#'basic',
+		'basic',
 	],
 	'prop': [
 		'default-alpha',
