@@ -802,6 +802,7 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	ret = reuse_previous_alloc(output, req, flags);
 	if (ret == 0) {
 		log_reuse(output);
+		mark_layers_clean(output);
 		return 0;
 	}
 	log_no_reuse(output);
