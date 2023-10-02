@@ -596,10 +596,37 @@ fb_info_needs_realloc(const drmModeFB2 *a, const drmModeFB2 *b)
 }
 
 static bool
-layer_needs_realloc(struct liftoff_layer *layer)
+layer_intersection_changed(struct liftoff_layer *this,
+			   struct liftoff_output *output)
 {
-	size_t i;
+	struct liftoff_layer *other;
+	struct liftoff_rect this_cur, this_prev, other_cur, other_prev;
+
+	layer_get_rect(this, &this_cur);
+	layer_get_prev_rect(this, &this_prev);
+	liftoff_list_for_each(other, &output->layers, link) {
+		if (this == other) {
+			continue;
+		}
+
+		layer_get_rect(other, &other_cur);
+		layer_get_prev_rect(other, &other_prev);
+
+		if (rect_intersects(&this_cur, &other_cur) !=
+		    rect_intersects(&this_prev, &other_prev)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool
+layer_needs_realloc(struct liftoff_layer *layer, struct liftoff_output *output)
+{
 	struct liftoff_layer_property *prop;
+	bool check_crtc_intersect = false;
+	size_t i;
 
 	if (layer->changed) {
 		liftoff_log(LIFTOFF_DEBUG, "Cannot re-use previous allocation: "
@@ -664,10 +691,24 @@ layer_needs_realloc(struct liftoff_layer *layer)
 			continue;
 		}
 
-		/* TODO: if CRTC_{X,Y,W,H} changed but intersection with other
-		 * layers hasn't changed, don't realloc */
+		/* If CRTC_* changed, check for intersection later */
+		if (strcmp(prop->name, "CRTC_X") == 0 ||
+		    strcmp(prop->name, "CRTC_Y") == 0 ||
+		    strcmp(prop->name, "CRTC_W") == 0 ||
+		    strcmp(prop->name, "CRTC_H") == 0) {
+			check_crtc_intersect = true;
+			continue;
+		}
+
 		liftoff_log(LIFTOFF_DEBUG, "Cannot re-use previous allocation: "
 			    "property \"%s\" changed", prop->name);
+		return true;
+	}
+
+	if (check_crtc_intersect &&
+	    layer_intersection_changed(layer, output)) {
+		liftoff_log(LIFTOFF_DEBUG, "Cannot re-use previous allocation: "
+			    "intersection with other layer(s) changed");
 		return true;
 	}
 
@@ -787,7 +828,7 @@ reuse_previous_alloc(struct liftoff_output *output, drmModeAtomicReq *req,
 	}
 
 	liftoff_list_for_each(layer, &output->layers, link) {
-		if (layer_needs_realloc(layer)) {
+		if (layer_needs_realloc(layer, output)) {
 			return -EINVAL;
 		}
 	}
