@@ -18,6 +18,9 @@ liftoff_list_insert(struct liftoff_list *list, struct liftoff_list *elm);
 void
 liftoff_list_remove(struct liftoff_list *elm);
 
+void
+liftoff_list_swap(struct liftoff_list *this, struct liftoff_list *other);
+
 size_t
 liftoff_list_length(const struct liftoff_list *list);
 

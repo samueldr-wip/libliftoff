@@ -25,6 +25,19 @@ liftoff_list_remove(struct liftoff_list *elm)
 	elm->prev = NULL;
 }
 
+void
+liftoff_list_swap(struct liftoff_list *this, struct liftoff_list *other)
+{
+	struct liftoff_list tmp;
+
+	liftoff_list_insert(other, &tmp);
+	liftoff_list_remove(other);
+	liftoff_list_insert(this, other);
+	liftoff_list_remove(this);
+	liftoff_list_insert(&tmp, this);
+	liftoff_list_remove(&tmp);
+}
+
 size_t
 liftoff_list_length(const struct liftoff_list *list)
 {
