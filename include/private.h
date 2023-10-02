@@ -92,7 +92,11 @@ struct liftoff_layer_property *
 layer_get_property(struct liftoff_layer *layer, const char *name);
 
 void
-layer_get_rect(struct liftoff_layer *layer, struct liftoff_rect *rect);
+layer_get_rect(struct liftoff_layer *layer, struct liftoff_rect *rect,
+	       bool get_prev);
+
+bool
+rect_intersects (struct liftoff_rect *a, struct liftoff_rect *b);
 
 bool
 layer_intersects(struct liftoff_layer *a, struct liftoff_layer *b);
