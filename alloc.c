@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include "alloc.h"
 #include "log.h"
 #include "private.h"
 
@@ -926,6 +927,52 @@ non_composition_layers_length(struct liftoff_output *output)
 	return n;
 }
 
+static int overlay_alloc(struct liftoff_output *output,
+			 struct alloc_result *result) {
+	struct liftoff_device *device;
+	struct alloc_step step = {0};
+	int ret;
+
+	device = output->device;
+
+	step.alloc = malloc(result->planes_len * sizeof(*step.alloc));
+	if (step.alloc == NULL || result->best == NULL) {
+		liftoff_log_errno(LIFTOFF_ERROR, "malloc");
+		return -ENOMEM;
+	}
+
+	if (clock_gettime(CLOCK_MONOTONIC, &result->started_at) != 0) {
+		liftoff_log_errno(LIFTOFF_ERROR, "clock_gettime");
+		return -errno;
+	}
+
+	/* For each plane, try to find a layer. Don't do it the other
+	 * way around (ie. for each layer, try to find a plane) because
+	 * some drivers want user-space to enable the primary plane
+	 * before any other plane. */
+
+	result->best_score = -1;
+	memset(result->best, 0, result->planes_len * sizeof(*result->best));
+	result->has_composition_layer = output->composition_layer != NULL;
+	result->non_composition_layers_len =
+		non_composition_layers_length(output);
+	step.plane_link = device->planes.next;
+	step.plane_idx = 0;
+	step.score = 0;
+	step.last_layer_zpos = INT_MAX;
+	step.primary_layer_zpos = INT_MIN;
+	step.primary_plane_zpos = INT_MAX;
+	step.composited = false;
+	ret = output_choose_layers(output, result, &step);
+	free(step.alloc);
+	return ret;
+}
+
+const struct liftoff_alloc_strategy alloc_overlay_strategy = {
+	.alloc = overlay_alloc,
+	.reuse = reuse_previous_alloc,
+};
+
 int
 liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 		     uint32_t flags)
@@ -934,7 +981,6 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	struct liftoff_plane *plane;
 	struct liftoff_layer *layer;
 	struct alloc_result result = {0};
-	struct alloc_step step = {0};
 	size_t i, candidate_planes;
 	int ret;
 
@@ -943,7 +989,7 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	update_layers_priority(device);
 	update_layers_fb_info(output);
 
-	ret = reuse_previous_alloc(output, req, flags);
+	ret = device->alloc_strategy->reuse(output, req, flags);
 	if (ret == 0) {
 		log_reuse(output);
 		mark_layers_clean(output);
@@ -988,36 +1034,13 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	result.flags = flags;
 	result.planes_len = liftoff_list_length(&device->planes);
 
-	step.alloc = malloc(result.planes_len * sizeof(*step.alloc));
 	result.best = malloc(result.planes_len * sizeof(*result.best));
-	if (step.alloc == NULL || result.best == NULL) {
+	if (result.best == NULL) {
 		liftoff_log_errno(LIFTOFF_ERROR, "malloc");
 		return -ENOMEM;
 	}
 
-	if (clock_gettime(CLOCK_MONOTONIC, &result.started_at) != 0) {
-		liftoff_log_errno(LIFTOFF_ERROR, "clock_gettime");
-		return -errno;
-	}
-
-	/* For each plane, try to find a layer. Don't do it the other
-	 * way around (ie. for each layer, try to find a plane) because
-	 * some drivers want user-space to enable the primary plane
-	 * before any other plane. */
-
-	result.best_score = -1;
-	memset(result.best, 0, result.planes_len * sizeof(*result.best));
-	result.has_composition_layer = output->composition_layer != NULL;
-	result.non_composition_layers_len =
-		non_composition_layers_length(output);
-	step.plane_link = device->planes.next;
-	step.plane_idx = 0;
-	step.score = 0;
-	step.last_layer_zpos = INT_MAX;
-	step.primary_layer_zpos = INT_MIN;
-	step.primary_plane_zpos = INT_MAX;
-	step.composited = false;
-	ret = output_choose_layers(output, &result, &step);
+	ret = device->alloc_strategy->alloc(output, &result);
 	if (ret != 0) {
 		return ret;
 	}
@@ -1053,7 +1076,6 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 		return ret;
 	}
 
-	free(step.alloc);
 	free(result.best);
 
 	mark_layers_clean(output);

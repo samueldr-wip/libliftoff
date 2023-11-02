@@ -9,6 +9,8 @@
  * given number of page-flips */
 #define LIFTOFF_PRIORITY_PERIOD 60
 
+struct liftoff_alloc_strategy;
+
 struct liftoff_device {
 	int drm_fd;
 
@@ -22,6 +24,8 @@ struct liftoff_device {
 
 	int page_flip_counter;
 	int test_commit_counter;
+
+	const struct liftoff_alloc_strategy *alloc_strategy;
 };
 
 struct liftoff_output {
