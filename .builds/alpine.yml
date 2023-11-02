@@ -10,6 +10,8 @@ sources:
   - https://gitlab.freedesktop.org/emersion/libliftoff.git
 artifacts:
   - coveragereport.tar.gz
+environment:
+  UBSAN_OPTIONS: halt_on_error=1
 tasks:
   - setup: |
       cd libliftoff
