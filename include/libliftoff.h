@@ -12,6 +12,14 @@ struct liftoff_output;
 struct liftoff_layer;
 struct liftoff_plane;
 
+struct liftoff_init_opts {
+	/**
+	 * Whether the compositor initializing libliftoff supports punchthru
+	 * composition
+	*/
+	bool punchthru_supported;
+};
+
 /**
  * Initialize libliftoff for a DRM node.
  *
@@ -19,7 +27,7 @@ struct liftoff_plane;
  * ownership of the file descriptor.
  */
 struct liftoff_device *
-liftoff_device_create(int drm_fd);
+liftoff_device_create(int drm_fd, struct liftoff_init_opts *opts);
 
 /**
  * Destroy a libliftoff device.

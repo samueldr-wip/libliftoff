@@ -755,6 +755,7 @@ run_test(const struct test_case *test)
 	struct liftoff_output *output;
 	struct liftoff_layer *layers[64];
 	struct liftoff_plane *plane;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	drmModeAtomicReq *req;
 	bool ok;
 	int ret;
@@ -767,7 +768,7 @@ run_test(const struct test_case *test)
 	}
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -858,13 +859,14 @@ test_basic(void)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	drmModeAtomicReq *req;
 	int ret;
 
 	mock_plane = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_PRIMARY);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -896,13 +898,14 @@ test_no_props_fail(void)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	drmModeAtomicReq *req;
 	int ret;
 
 	mock_plane = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_PRIMARY);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -935,13 +938,14 @@ test_composition_no_props(void)
 	struct liftoff_output *output;
 	struct liftoff_layer *composition_layer, *layer_with_fb,
 			     *layer_without_fb;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	drmModeAtomicReq *req;
 	int ret;
 
 	mock_plane = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_PRIMARY);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);

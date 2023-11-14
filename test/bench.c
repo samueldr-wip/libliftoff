@@ -45,6 +45,7 @@ main(int argc, char *argv[])
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layers[MAX_LAYERS];
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	drmModeAtomicReq *req;
 	int ret;
 	double dur_ms;
@@ -75,7 +76,7 @@ main(int argc, char *argv[])
 	}
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);

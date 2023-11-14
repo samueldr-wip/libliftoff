@@ -50,6 +50,7 @@ test_prop_default(const char *prop_name)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	uint64_t require_prop_value, default_value;
 	drmModePropertyRes prop = {0};
 
@@ -76,7 +77,7 @@ test_prop_default(const char *prop_name)
 	liftoff_mock_plane_add_property(mock_plane_with_prop, &prop, 0);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -121,6 +122,7 @@ test_ignore_alpha(void)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 
 	mock_plane = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_PRIMARY);
 
@@ -128,7 +130,7 @@ test_ignore_alpha(void)
 	liftoff_mock_plane_add_property(mock_plane, &prop, 0);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -158,6 +160,7 @@ test_immutable_zpos(void)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer1, *layer2;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 
 	mock_plane1 = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_OVERLAY);
 	mock_plane2 = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_OVERLAY);
@@ -170,7 +173,7 @@ test_immutable_zpos(void)
 	liftoff_mock_plane_add_property(mock_plane2, &prop, 2);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -215,11 +218,12 @@ test_unmatched_prop(void)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 
 	mock_plane = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_PRIMARY);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -247,11 +251,12 @@ test_unset_prop(void)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 
 	mock_plane = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_PRIMARY);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -291,6 +296,7 @@ test_in_formats(void)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	struct single_format_modifier_blob in_formats;
 	uint32_t fb_id;
 	drmModeFB2 fb_info;
@@ -315,7 +321,7 @@ test_in_formats(void)
 	liftoff_mock_plane_add_in_formats(mock_plane, &in_formats.base, sizeof(in_formats));
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
@@ -367,12 +373,13 @@ test_type(const drmModePropertyRes *prop, uint64_t valid_value,
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 
 	mock_plane = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_PRIMARY);
 	liftoff_mock_plane_add_property(mock_plane, prop, 0);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);

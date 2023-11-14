@@ -35,6 +35,7 @@ test_basic(void)
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
 	struct liftoff_plane *plane_ok, *plane_ko;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	drmModeAtomicReq *req;
 	drmModePropertyRes prop = {0};
 	int ret;
@@ -49,7 +50,7 @@ test_basic(void)
 	liftoff_mock_plane_add_property(mock_plane_ok, &prop, 0);
 
 	drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	assert(device != NULL);
 
 	plane_ok = liftoff_plane_create(device, liftoff_mock_plane_get_id(mock_plane_ok));

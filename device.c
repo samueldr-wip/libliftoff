@@ -7,7 +7,7 @@
 #include "alloc.h"
 
 struct liftoff_device *
-liftoff_device_create(int drm_fd)
+liftoff_device_create(int drm_fd, struct liftoff_init_opts *opts)
 {
 	struct liftoff_device *device;
 	drmModeRes *drm_res;

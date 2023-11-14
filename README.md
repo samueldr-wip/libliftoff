@@ -37,7 +37,9 @@ struct liftoff_layer *layer;
 drmModeAtomicReq *req;
 int ret;
 
-device = liftoff_device_create(drm_fd);
+struct liftoff_init_opts opts = { .punchthru_supported = false };
+
+device = liftoff_device_create(drm_fd, &opts);
 output = liftoff_output_create(device, crtc_id);
 
 liftoff_device_register_all_planes(device);

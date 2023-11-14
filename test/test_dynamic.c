@@ -345,6 +345,7 @@ run(const struct test_case *test)
 {
 	struct context ctx = {0};
 	struct liftoff_device *device;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	const char *prop_name;
 	drmModePropertyRes prop;
 
@@ -373,7 +374,7 @@ run(const struct test_case *test)
 	liftoff_mock_plane_add_property(ctx.mock_plane, &prop, 0);
 
 	ctx.drm_fd = liftoff_mock_drm_open();
-	device = liftoff_device_create(ctx.drm_fd);
+	device = liftoff_device_create(ctx.drm_fd, &opts);
 	assert(device != NULL);
 
 	liftoff_device_register_all_planes(device);
