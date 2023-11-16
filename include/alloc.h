@@ -4,6 +4,8 @@
 #include <libliftoff.h>
 #include <time.h>
 
+struct alloc_result;
+
 struct liftoff_alloc_strategy {
 	/**
 	 * alloc - algorithm for allocating layers to DRM planes
@@ -18,5 +20,6 @@ struct liftoff_alloc_strategy {
 };
 
 extern const struct liftoff_alloc_strategy alloc_overlay_strategy;
+extern const struct liftoff_alloc_strategy alloc_underlay_strategy;
 
 #endif
