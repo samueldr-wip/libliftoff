@@ -34,6 +34,7 @@ liftoff_deps = [drm]
 liftoff_lib = library(
 	'liftoff',
 	files(
+		'pixel_format.c',
 		'alloc.c',
 		'device.c',
 		'layer.c',
