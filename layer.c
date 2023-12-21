@@ -17,8 +17,8 @@ liftoff_layer_create(struct liftoff_output *output)
 		return NULL;
 	}
 	layer->output = output;
-	layer->candidate_planes = calloc(sizeof(layer->candidate_planes[0]),
-					 output->device->planes_cap);
+	layer->candidate_planes = calloc(output->device->planes_cap,
+					 sizeof(layer->candidate_planes[0]));
 	if (layer->candidate_planes == NULL) {
 		liftoff_log_errno(LIFTOFF_ERROR, "calloc");
 		free(layer);
