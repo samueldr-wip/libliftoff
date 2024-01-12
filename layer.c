@@ -151,6 +151,11 @@ liftoff_layer_needs_composition(struct liftoff_layer *layer)
 	return layer->plane == NULL;
 }
 
+bool
+liftoff_layer_is_underlay(struct liftoff_layer *layer) {
+	return layer->is_underlay;
+}
+
 void
 layer_get_rect(struct liftoff_layer *layer, struct liftoff_rect *rect,
 		      bool get_prev)

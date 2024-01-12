@@ -57,6 +57,8 @@ struct liftoff_layer {
 	/* prop added or force_composition changed */
 	bool changed;
 	drmModeFB2 fb_info, prev_fb_info; /* cached FB info */
+
+	bool is_underlay;
 };
 
 struct liftoff_layer_property {

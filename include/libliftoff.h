@@ -172,6 +172,18 @@ bool
 liftoff_layer_needs_composition(struct liftoff_layer *layer);
 
 /**
+ * Check whether this layer is allocated under the composition layer
+ *
+ * If this layer is an underlay, the compositor has to treat it differently when
+ * blending the render list into the composition layer. Instead of blending, the
+ * compositor shall blit a zero-alpha hole of the same position and size as this
+ * layer. Once the hw directly scans out the mapped layers, this underlay will
+ * show-through the punched hole.
+*/
+bool
+liftoff_layer_is_underlay(struct liftoff_layer *layer);
+
+/**
  * Retrieve the plane mapped to this layer.
  *
  * NULL is returned if no plane is mapped.
