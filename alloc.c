@@ -79,6 +79,7 @@ struct alloc_result {
 	int best_score;
 
 	struct timespec started_at;
+	int64_t timeout_ns;
 
 	/* per-output */
 	bool has_composition_layer;
@@ -108,10 +109,10 @@ timespec_to_nsec(struct timespec ts)
 	return (int64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
 }
 
-static const int64_t ALLOC_TIMEOUT_NSEC = 1000 * 1000; // 1ms
+static const int64_t DEFAULT_ALLOC_TIMEOUT_NSEC = 1000 * 1000; // 1ms
 
 static bool
-check_deadline(struct timespec start)
+check_deadline(struct timespec start, int64_t timeout_ns)
 {
 	struct timespec now;
 	int64_t deadline;
@@ -121,7 +122,7 @@ check_deadline(struct timespec start)
 		return false;
 	}
 
-	deadline = timespec_to_nsec(start) + ALLOC_TIMEOUT_NSEC;
+	deadline = timespec_to_nsec(start) + timeout_ns;
 	return timespec_to_nsec(now) < deadline;
 }
 
@@ -478,7 +479,7 @@ output_choose_layers(struct liftoff_output *output, struct alloc_result *result,
 			continue;
 		}
 
-		if (!check_deadline(result->started_at)) {
+		if (!check_deadline(result->started_at, result->timeout_ns)) {
 			liftoff_log(LIFTOFF_DEBUG, "%s Deadline exceeded",
 				    step->log_prefix);
 			break;
@@ -887,16 +888,22 @@ non_composition_layers_length(struct liftoff_output *output)
 
 int
 liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
-		     uint32_t flags)
+		     uint32_t flags,
+		     const struct liftoff_output_apply_options *options)
 {
 	struct liftoff_device *device;
 	struct liftoff_plane *plane;
 	struct liftoff_layer *layer;
 	struct alloc_result result = {0};
 	struct alloc_step step = {0};
+	const struct liftoff_output_apply_options default_options = {0};
 	size_t i, candidate_planes;
 	int ret;
 	bool found_layer;
+
+	if (options == NULL) {
+		options = &default_options;
+	}
 
 	device = output->device;
 
@@ -958,6 +965,11 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	if (clock_gettime(CLOCK_MONOTONIC, &result.started_at) != 0) {
 		liftoff_log_errno(LIFTOFF_ERROR, "clock_gettime");
 		return -errno;
+	}
+
+	result.timeout_ns = options->timeout_ns;
+	if (result.timeout_ns == 0) {
+		result.timeout_ns = DEFAULT_ALLOC_TIMEOUT_NSEC;
 	}
 
 	/* For each plane, try to find a layer. Don't do it the other

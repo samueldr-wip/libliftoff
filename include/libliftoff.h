@@ -63,18 +63,28 @@ uint32_t
 liftoff_plane_get_id(struct liftoff_plane *plane);
 
 /**
+ * Options for liftoff_output_apply().
+ */
+struct liftoff_output_apply_options {
+	/* Timeout in nanoseconds. If zero, a default timeout is used. */
+	int64_t timeout_ns;
+};
+
+/**
  * Build a layer to plane mapping and append the plane configuration to req.
  *
  * Callers are expected to commit req afterwards and can figure out which
  * layers need composition via liftoff_layer_needs_composition().
  *
- * flags is the atomic commit flags the caller intends to use.
+ * flags is the atomic commit flags the caller intends to use. If options is
+ * NULL, defaults are used.
  *
  * Zero is returned on success, negative errno on error.
  */
 int
 liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
-		     uint32_t flags);
+		     uint32_t flags,
+		     const struct liftoff_output_apply_options *options);
 
 /**
  * Make the device manage a CRTC's planes.

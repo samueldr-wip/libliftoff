@@ -104,7 +104,7 @@ main(int argc, char *argv[])
 	clock_gettime(CLOCK_MONOTONIC, &start);
 
 	req = drmModeAtomicAlloc();
-	ret = liftoff_output_apply(output, req, 0);
+	ret = liftoff_output_apply(output, req, 0, NULL);
 	assert(ret == 0);
 	drmModeAtomicFree(req);
 

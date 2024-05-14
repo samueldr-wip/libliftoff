@@ -34,7 +34,7 @@ commit(int drm_fd, struct liftoff_output *output)
 	int ret;
 
 	req = drmModeAtomicAlloc();
-	ret = liftoff_output_apply(output, req, 0);
+	ret = liftoff_output_apply(output, req, 0, NULL);
 	assert(ret == 0);
 	ret = drmModeAtomicCommit(drm_fd, req, 0, NULL);
 	assert(ret == 0);

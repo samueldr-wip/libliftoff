@@ -803,7 +803,7 @@ run_test(const struct test_case *test)
 	}
 
 	req = drmModeAtomicAlloc();
-	ret = liftoff_output_apply(output, req, 0);
+	ret = liftoff_output_apply(output, req, 0, NULL);
 	assert(ret == 0);
 	ret = drmModeAtomicCommit(drm_fd, req, 0, NULL);
 	assert(ret == 0);
@@ -875,7 +875,7 @@ test_basic(void)
 	liftoff_mock_plane_add_compatible_layer(mock_plane, layer);
 
 	req = drmModeAtomicAlloc();
-	ret = liftoff_output_apply(output, req, 0);
+	ret = liftoff_output_apply(output, req, 0, NULL);
 	assert(ret == 0);
 	ret = drmModeAtomicCommit(drm_fd, req, 0, NULL);
 	assert(ret == 0);
@@ -913,7 +913,7 @@ test_no_props_fail(void)
 	liftoff_mock_plane_add_compatible_layer(mock_plane, layer);
 
 	req = drmModeAtomicAlloc();
-	ret = liftoff_output_apply(output, req, 0);
+	ret = liftoff_output_apply(output, req, 0, NULL);
 	assert(ret == 0);
 	ret = drmModeAtomicCommit(drm_fd, req, 0, NULL);
 	assert(ret == 0);
@@ -959,7 +959,7 @@ test_composition_no_props(void)
 	liftoff_mock_plane_add_compatible_layer(mock_plane, layer_with_fb);
 
 	req = drmModeAtomicAlloc();
-	ret = liftoff_output_apply(output, req, 0);
+	ret = liftoff_output_apply(output, req, 0, NULL);
 	assert(ret == 0);
 	ret = drmModeAtomicCommit(drm_fd, req, 0, NULL);
 	assert(ret == 0);
