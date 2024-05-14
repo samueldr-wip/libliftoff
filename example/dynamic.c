@@ -154,6 +154,7 @@ main(int argc, char *argv[])
 	drmModeRes *drm_res;
 	drmModeCrtc *crtc;
 	drmModeConnector *connector;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	size_t i;
 	int ret;
 
@@ -168,7 +169,7 @@ main(int argc, char *argv[])
 		return 1;
 	}
 
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	if (device == NULL) {
 		perror("liftoff_device_create");
 		return 1;

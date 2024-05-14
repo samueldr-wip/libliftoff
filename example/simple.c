@@ -73,6 +73,7 @@ main(int argc, char *argv[])
 	drmModeConnector *connector;
 	struct liftoff_output *output;
 	struct liftoff_layer *layers[LAYERS_LEN];
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	struct liftoff_plane *plane;
 	drmModeAtomicReq *req;
 	int ret;
@@ -90,7 +91,7 @@ main(int argc, char *argv[])
 		return 1;
 	}
 
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	if (device == NULL) {
 		perror("liftoff_device_create");
 		return 1;

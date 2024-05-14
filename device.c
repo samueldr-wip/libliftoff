@@ -4,9 +4,10 @@
 #include <unistd.h>
 #include "log.h"
 #include "private.h"
+#include "alloc.h"
 
 struct liftoff_device *
-liftoff_device_create(int drm_fd)
+liftoff_device_create(int drm_fd, struct liftoff_init_opts *opts)
 {
 	struct liftoff_device *device;
 	drmModeRes *drm_res;
@@ -55,6 +56,12 @@ liftoff_device_create(int drm_fd)
 	}
 	device->planes_cap = drm_plane_res->count_planes;
 	drmModeFreePlaneResources(drm_plane_res);
+
+	if (!opts->punchthru_supported) {
+		device->alloc_strategy = &alloc_overlay_strategy;
+	} else {
+		device->alloc_strategy = &alloc_underlay_strategy;
+	}
 
 	return device;
 }

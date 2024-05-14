@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <drm_fourcc.h>
+#include <errno.h>
 #include <unistd.h>
 #include <libliftoff.h>
 #include <stdbool.h>
@@ -7,13 +9,23 @@
 #include "libdrm_mock.h"
 
 static struct liftoff_layer *
-add_layer(struct liftoff_output *output, int x, int y, int width, int height)
+add_layer(struct liftoff_output *output, int x, int y, int width, int height,
+	  uint32_t drm_format)
 {
 	uint32_t fb_id;
+	drmModeFB2 fb_info;
 	struct liftoff_layer *layer;
 
 	layer = liftoff_layer_create(output);
 	fb_id = liftoff_mock_drm_create_fb(layer);
+	fb_info = (drmModeFB2) {
+		.fb_id = fb_id,
+		.width = (uint32_t)width,
+		.height = (uint32_t)height,
+		.flags = 0,
+		.pixel_format = drm_format,
+	};
+	liftoff_mock_drm_set_fb_info(&fb_info);
 	liftoff_layer_set_property(layer, "FB_ID", fb_id);
 	liftoff_layer_set_property(layer, "CRTC_X", (uint64_t)x);
 	liftoff_layer_set_property(layer, "CRTC_Y", (uint64_t)y);
@@ -45,6 +57,8 @@ struct test_layer {
 	int x, y, width, height;
 	bool composition;
 	bool force_composited;
+	bool is_underlay;
+	bool no_alpha;
 	struct test_prop props[64];
 
 	struct test_plane *compat[64];
@@ -74,11 +88,15 @@ static const size_t test_setup_len = sizeof(test_setup) / sizeof(test_setup[0]);
 #define PRIMARY_PLANE &test_setup[0]
 #define CURSOR_PLANE &test_setup[1]
 #define OVERLAY_PLANE &test_setup[2]
+#define OVERLAY_PLANE_B &test_setup[3]
 
 /* non-primary planes */
+#define NON_CURSOR_PLANES { &test_setup[0], &test_setup[2], &test_setup[3] }
 #define FIRST_2_SECONDARY_PLANES { &test_setup[1], &test_setup[2] }
 #define FIRST_3_SECONDARY_PLANES { &test_setup[1], &test_setup[2], \
 				   &test_setup[3] }
+#define ALL_PLANES { &test_setup[0], &test_setup[1], &test_setup[2], \
+		     &test_setup[3]}
 
 static const struct test_case tests[] = {
 	{
@@ -110,13 +128,71 @@ static const struct test_case tests[] = {
 		},
 	},
 	{
-		.name = "simple-3x",
-		.needs_composition = false,
+		.name = "simple-1x-no-composition",
+		.needs_composition = true,
+		/**
+		 * Given
+		*/
 		.layers = {
 			{
 				.width = 1920,
 				.height = 1080,
 				.compat = { PRIMARY_PLANE },
+				.result = PRIMARY_PLANE,
+			},
+						{
+				.width = 1920,
+				.height = 1080,
+				.composition = true,
+				.compat = { PRIMARY_PLANE },
+				.result = NULL,
+			},
+		},
+	},
+	{
+		.name = "simple-3x",
+		.needs_composition = false,
+		/*
+		 * Underlay allocation will place opaque layer underneath
+		 * the composition layer.
+		*/
+		.layers = {
+			{
+				.width = 1920,
+				.height = 1080,
+				.composition = true,
+				.compat = NON_CURSOR_PLANES,
+				.result = OVERLAY_PLANE_B,
+			},
+			{
+				.width = 100,
+				.height = 100,
+				.compat = { CURSOR_PLANE },
+				.result = CURSOR_PLANE,
+			},
+			{
+				.width = 100,
+				.height = 100,
+				.is_underlay = true,
+				.no_alpha = true,
+				.compat = NON_CURSOR_PLANES,
+				.result = PRIMARY_PLANE,
+			},
+		},
+	},
+	{
+		.name = "simple-3x-all-alpha",
+		.needs_composition = false,
+		/*
+		 * No layers can be underlay'd since they all have alpha
+		 * channel. Fallback to overlay-only.
+		*/
+		.layers = {
+			{
+				.width = 1920,
+				.height = 1080,
+				// .composition = true,
+				.compat = NON_CURSOR_PLANES,
 				.result = PRIMARY_PLANE,
 			},
 			{
@@ -128,21 +204,8 @@ static const struct test_case tests[] = {
 			{
 				.width = 100,
 				.height = 100,
-				.compat = { OVERLAY_PLANE },
-				.result = OVERLAY_PLANE,
-			},
-		},
-	},
-	{
-		.name = "zero-fb-id-fail",
-		.needs_composition = false,
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "FB_ID", 0 }},
-				.compat = { PRIMARY_PLANE },
-				.result = NULL,
+				.compat = NON_CURSOR_PLANES,
+				.result = OVERLAY_PLANE_B,
 			},
 		},
 	},
@@ -160,6 +223,7 @@ static const struct test_case tests[] = {
 			{
 				.width = 1920,
 				.height = 1080,
+				.composition = true,
 				.props = {{ "zpos", 2 }},
 				.compat = { PRIMARY_PLANE },
 				.result = PRIMARY_PLANE,
@@ -169,574 +233,205 @@ static const struct test_case tests[] = {
 	{
 		.name = "zpos-3x",
 		.needs_composition = false,
+		/*
+		 * The highest z-pos layer that is compatible with CURSOR will
+		 * be assigned.
+		*/
 		.layers = {
 			{
 				.width = 1920,
 				.height = 1080,
+				.composition = true,
 				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
+				.compat = NON_CURSOR_PLANES,
+				.result = OVERLAY_PLANE_B,
+			},
+			{
+				.width = 100,
+				.height = 100,
+				.is_underlay = true,
+				.no_alpha = true,
+				.props = {{ "zpos", 2 }},
+				.compat = NON_CURSOR_PLANES,
 				.result = PRIMARY_PLANE,
 			},
 			{
 				.width = 100,
 				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = FIRST_2_SECONDARY_PLANES,
-				.result = OVERLAY_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
 				.props = {{ "zpos", 3 }},
-				.compat = FIRST_2_SECONDARY_PLANES,
+				.compat = FIRST_3_SECONDARY_PLANES,
 				.result = CURSOR_PLANE,
 			},
 		},
 	},
 	{
-		.name = "zpos-3x-intersect-fail",
+		.name = "zpos-4x-partial-undefined-overlay",
 		.needs_composition = true,
-		/* Layer 1 is over layer 2 but falls back to composition. Since
-		 * they intersect, layer 2 needs to be composited too. */
+		/**
+		 * Since the two OVERLAY planes have undefined z-ordering, they
+		 * cannot be enabled at the same time. Test that we cannot
+		 * enable both OVERLAYs using the composition layer, and the
+		 * overlay layer immediately above it
+		*/
 		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { NULL },
-				.result = NULL,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = FIRST_2_SECONDARY_PLANES,
-				.result = NULL,
-			},
-		},
-	},
-	{
-		.name = "zpos-3x-intersect-partial",
-		.needs_composition = true,
-		/* Layer 1 is only compatible with the cursor plane. Layer 2 is
-		 * only compatible with the overlay plane. Layer 2 is over layer
-		 * 1, but the cursor plane is over the overlay plane. There is a
-		 * zpos conflict, only one of these two layers can be mapped to
-		 * a plane. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = { CURSOR_PLANE },
-				.result = NULL,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { OVERLAY_PLANE },
-				.result = OVERLAY_PLANE,
-			},
-		},
-	},
-	{
-		.name = "zpos-3x-disjoint-partial",
-		.needs_composition = true,
-		/* Layer 1 is over layer 2 and falls back to composition. Since
-		 * they don't intersect, layer 2 can be mapped to a plane. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { NULL },
-				.result = NULL,
-			},
-			{
-				.x = 100,
-				.y = 100,
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = { CURSOR_PLANE },
-				.result = CURSOR_PLANE,
-			},
-		},
-	},
-	{
-		.name = "zpos-3x-disjoint",
-		.needs_composition = false,
-		/* Layer 1 is only compatible with the cursor plane. Layer 2 is
-		 * only compatible with the overlay plane. Layer 2 is over layer
-		 * 1, but the cursor plane is over the overlay plane. There is a
-		 * zpos conflict, however since these two layers don't
-		 * intersect, we can still map them to planes. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = { CURSOR_PLANE },
-				.result = CURSOR_PLANE,
-			},
-			{
-				.x = 100,
-				.y = 100,
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { OVERLAY_PLANE },
-				.result = OVERLAY_PLANE,
-			},
-		},
-	},
-	{
-		.name = "zpos-4x-intersect-partial",
-		.needs_composition = true,
-		/* We have 4 layers and 4 planes. However since they all
-		 * intersect and the ordering between both overlay planes is
-		 * undefined, we can only use 3 planes. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
 			{
 				.width = 100,
 				.height = 100,
 				.props = {{ "zpos", 4 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
+				.compat = ALL_PLANES,
 				.result = CURSOR_PLANE,
 			},
 			{
 				.width = 100,
 				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
+				.props = {{ "zpos", 3 }},
+				.compat = ALL_PLANES,
 				.result = NULL,
 			},
 			{
 				.width = 100,
 				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
-				.result = &test_setup[3],
-			},
-		},
-	},
-	{
-		.name = "zpos-4x-disjoint",
-		.needs_composition = false,
-		/* Ordering between the two overlay planes isn't defined,
-		 * however layers 2 and 3 don't intersect so they can be mapped
-		 * to these planes nonetheless. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
+				.is_underlay = true,
+				.no_alpha = true,
+				.props = {{ "zpos", 2 }},
+				.compat = ALL_PLANES,
 				.result = PRIMARY_PLANE,
 			},
 			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 4 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
-				.result = CURSOR_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = { &test_setup[3] },
-				.result = &test_setup[3],
-			},
-			{
-				.x = 100,
-				.y = 100,
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { OVERLAY_PLANE },
-				.result = OVERLAY_PLANE,
-			},
-		},
-	},
-	{
-		.name = "zpos-4x-disjoint-alt",
-		.needs_composition = false,
-		/* Same as zpos-4x-disjoint, but with the last two layers'
-		 * plane swapped. */
-		.layers = {
-			{
 				.width = 1920,
 				.height = 1080,
+				.composition = true,
 				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 4 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
-				.result = CURSOR_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = { OVERLAY_PLANE },
-				.result = OVERLAY_PLANE,
-			},
-			{
-				.x = 100,
-				.y = 100,
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { &test_setup[3] },
-				.result = &test_setup[3],
+				.compat = NON_CURSOR_PLANES,
+				.result = OVERLAY_PLANE_B,
 			},
 		},
 	},
 	{
-		.name = "zpos-4x-domino-fail",
+		.name = "zpos-4x-partial-undefined-underlay",
 		.needs_composition = true,
-		/* A layer on top falls back to composition. There is a layer at
-		 * zpos=2 which doesn't overlap and could be mapped to a plane,
-		 * however another layer at zpos=3 overlaps both and prevents
-		 * all layers from being mapped to a plane. */
+		/**
+		 * Same as above, except test using the composition layer, and
+		 * the underlay layer immediately below it.
+		*/
 		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
 			{
 				.width = 100,
 				.height = 100,
 				.props = {{ "zpos", 4 }},
-				.compat = { NULL },
-				.result = NULL,
-			},
-			{
-				.x = 100,
-				.y = 100,
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
-				.result = NULL,
-			},
-			{
-				.x = 50,
-				.y = 50,
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
-				.result = NULL,
-			},
-		},
-	},
-	{
-		.name = "zpos-4x-domino-partial",
-		.needs_composition = true,
-		/* A layer on top falls back to composition. A layer at zpos=2
-		 * falls back to composition too because it's underneath. A
-		 * layer at zpos=3 doesn't intersect with the one at zpos=4 and
-		 * is over the one at zpos=2 so it can be mapped to a plane. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 4 }},
-				.compat = { NULL },
-				.result = NULL,
-			},
-			{
-				.x = 100,
-				.y = 100,
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
+				.compat = ALL_PLANES,
 				.result = CURSOR_PLANE,
 			},
 			{
-				.x = 50,
-				.y = 50,
 				.width = 100,
 				.height = 100,
+				.is_underlay = true,
+				.no_alpha = true,
+				.props = {{ "zpos", 3 }},
+				.compat = ALL_PLANES,
+				.result = PRIMARY_PLANE,
+			},
+			{
+				.width = 100,
+				.height = 100,
+				.is_underlay = false,
+				.no_alpha = true,
 				.props = {{ "zpos", 2 }},
-				.compat = FIRST_3_SECONDARY_PLANES,
+				.compat = ALL_PLANES,
 				.result = NULL,
 			},
+			{
+				.width = 1920,
+				.height = 1080,
+				.composition = true,
+				.props = {{ "zpos", 1 }},
+				.compat = NON_CURSOR_PLANES,
+				.result = OVERLAY_PLANE_B,
+			},
 		},
 	},
 	{
-		.name = "zpos-2x-reverse",
+		.name = "zpos-4x-undefined-underlay",
 		.needs_composition = false,
-		/* Layer on top comes first */
+		/**
+		 * Same as above, except test using the composition layer, and
+		 * the underlay layer immediately below it.
+		*/
 		.layers = {
 			{
 				.width = 100,
 				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = { PRIMARY_PLANE, OVERLAY_PLANE },
-				.result = OVERLAY_PLANE,
+				.is_underlay = true,
+				.no_alpha = true,
+				.props = {{ "zpos", 4 }},
+				.compat = NON_CURSOR_PLANES,
+				.result = OVERLAY_PLANE_B,
 			},
 			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE, OVERLAY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-		},
-	},
-	{
-		.name = "zpos-3x-zero-fb-id",
-		.needs_composition = false,
-		/* Layers at zpos=1 and zpos=2 can be put on a plane. There is
-		 * a layer with zpos=3 but it's not visible because it has a
-		 * zero FB_ID, so it should be ignored. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 200,
-				.height = 200,
-				.props = {{ "zpos", 2 }},
-				.compat = { OVERLAY_PLANE },
-				.result = OVERLAY_PLANE,
-			},
-			{
+				.x = 100,
 				.width = 100,
 				.height = 100,
-				.props = {{ "zpos", 3 }, { "FB_ID", 0 }},
-				.compat = { 0 },
-				.result = NULL,
-			},
-		},
-	},
-	{
-		.name = "zpos-3x-zero-alpha",
-		.needs_composition = false,
-		/* Same as zpos-3x-zero-fb-id but with a zero alpha. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 200,
-				.height = 200,
-				.props = {{ "zpos", 2 }},
-				.compat = { OVERLAY_PLANE },
+				.is_underlay = true,
+				.no_alpha = true,
+				.props = {{ "zpos", 3 }},
+				.compat = NON_CURSOR_PLANES,
 				.result = OVERLAY_PLANE,
 			},
 			{
 				.width = 100,
 				.height = 100,
-				.props = {{ "zpos", 3 }, { "alpha", 0 }},
-				.compat = { 0 },
-				.result = NULL,
+				.is_underlay = true,
+				.no_alpha = true,
+				.props = {{ "zpos", 2 }},
+				.compat = NON_CURSOR_PLANES,
+				.result = PRIMARY_PLANE,
 			},
-		},
-	},
-	{
-		.name = "composition-3x",
-		.needs_composition = true,
-		.layers = {
 			{
 				.width = 1920,
 				.height = 1080,
 				.props = {{ "zpos", 1 }},
 				.composition = true,
-				.compat = { PRIMARY_PLANE },
-				.result = NULL,
+				.compat = ALL_PLANES,
+				.result = CURSOR_PLANE,
+			},
+		},
+	},
+	{
+		.name = "zpos-4x-undefined-overlay",
+		.needs_composition = false,
+		/**
+		 * Same as above, except test using the composition layer, and
+		 * the underlay layer immediately below it.
+		*/
+		.layers = {
+			{
+				.width = 100,
+				.height = 100,
+				.props = {{ "zpos", 4 }},
+				.compat = ALL_PLANES,
+				.result = CURSOR_PLANE,
 			},
 			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
+				.x = 100,
+				.width = 100,
+				.height = 100,
+				.props = {{ "zpos", 3 }},
+				.compat = NON_CURSOR_PLANES,
+				.result = OVERLAY_PLANE_B,
 			},
 			{
 				.width = 100,
 				.height = 100,
 				.props = {{ "zpos", 2 }},
-				.compat = FIRST_2_SECONDARY_PLANES,
+				.compat = NON_CURSOR_PLANES,
 				.result = OVERLAY_PLANE,
 			},
 			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = FIRST_2_SECONDARY_PLANES,
-				.result = CURSOR_PLANE,
-			},
-		},
-	},
-	{
-		.name = "composition-3x-fail",
-		.needs_composition = true,
-		.layers = {
-			{
 				.width = 1920,
 				.height = 1080,
 				.props = {{ "zpos", 1 }},
-				.composition = true,
-				.compat = { PRIMARY_PLANE },
+				.compat = ALL_PLANES,
 				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = NULL,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = FIRST_2_SECONDARY_PLANES,
-				.result = NULL,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { 0 },
-				.result = NULL,
-			},
-		},
-	},
-	{
-		.name = "composition-3x-partial",
-		.needs_composition = true,
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.composition = true,
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = NULL,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.compat = { 0 },
-				.result = NULL,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { CURSOR_PLANE },
-				.result = CURSOR_PLANE,
-			},
-		},
-	},
-	{
-		.name = "composition-3x-force",
-		.needs_composition = true,
-		/* Layers at zpos=1 and zpos=2 could be put on a plane, but
-		 * FB composition is forced on the zpos=2 one. As a result, only
-		 * the layer at zpos=3 can be put into a plane. */
-		.layers = {
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.composition = true,
-				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
-			},
-			{
-				.width = 1920,
-				.height = 1080,
-				.props = {{ "zpos", 1 }},
-				.compat = { PRIMARY_PLANE },
-				.result = NULL,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 2 }},
-				.force_composited = true,
-				.compat = FIRST_2_SECONDARY_PLANES,
-				.result = NULL,
-			},
-			{
-				.width = 100,
-				.height = 100,
-				.props = {{ "zpos", 3 }},
-				.compat = { CURSOR_PLANE },
-				.result = CURSOR_PLANE,
 			},
 		},
 	},
@@ -755,7 +450,7 @@ run_test(const struct test_case *test)
 	struct liftoff_output *output;
 	struct liftoff_layer *layers[64];
 	struct liftoff_plane *plane;
-	struct liftoff_init_opts opts = { .punchthru_supported = false };
+	struct liftoff_init_opts opts = { .punchthru_supported = true };
 	drmModeAtomicReq *req;
 	bool ok;
 	int ret;
@@ -778,7 +473,10 @@ run_test(const struct test_case *test)
 		test_layer = &test->layers[i];
 
 		layers[i] = add_layer(output, test_layer->x, test_layer->y,
-				      test_layer->width, test_layer->height);
+				      test_layer->width, test_layer->height,
+				      (test_layer->no_alpha ?
+				       DRM_FORMAT_XRGB8888 :
+				       DRM_FORMAT_ARGB8888));
 
 		len = sizeof(test_layer->props) / sizeof(test_layer->props[0]);
 		for (j = 0; j < len && test_layer->props[j].name != NULL; j++) {
@@ -840,6 +538,15 @@ run_test(const struct test_case *test)
 				(int)plane_index_want);
 			ok = false;
 		}
+
+		if (test->layers[i].is_underlay !=
+		    liftoff_layer_is_underlay(layers[i])) {
+			fprintf(stderr, "  ERROR: Layer %zu is underlay=%d, "
+				"expected =%d\n",
+				i, liftoff_layer_is_underlay(layers[i]),
+				test->layers[i].is_underlay);
+			ok = false;
+		}
 	}
 	assert(ok);
 
@@ -851,6 +558,13 @@ run_test(const struct test_case *test)
 	close(drm_fd);
 }
 
+/**
+ * The most basic case for underlay is the composition layer -> PRIMARY plane
+ * allocation.
+ *
+ * TODO: Allow underlay to fallback to overlay strategy if no composition layer
+ * is provided.
+*/
 static void
 test_basic(void)
 {
@@ -872,7 +586,7 @@ test_basic(void)
 	liftoff_device_register_all_planes(device);
 
 	output = liftoff_output_create(device, liftoff_mock_drm_crtc_id);
-	layer = add_layer(output, 0, 0, 1920, 1080);
+	layer = add_layer(output, 0, 0, 1920, 1080, DRM_FORMAT_ARGB8888);
 
 	liftoff_mock_plane_add_compatible_layer(mock_plane, layer);
 
@@ -898,7 +612,7 @@ test_no_props_fail(void)
 	struct liftoff_device *device;
 	struct liftoff_output *output;
 	struct liftoff_layer *layer;
-	struct liftoff_init_opts opts = { .punchthru_supported = false };
+	struct liftoff_init_opts opts = { .punchthru_supported = true };
 	drmModeAtomicReq *req;
 	int ret;
 
@@ -913,6 +627,7 @@ test_no_props_fail(void)
 	output = liftoff_output_create(device, liftoff_mock_drm_crtc_id);
 	layer = liftoff_layer_create(output);
 
+	liftoff_output_set_composition_layer(output, layer);
 	liftoff_mock_plane_add_compatible_layer(mock_plane, layer);
 
 	req = drmModeAtomicAlloc();
@@ -938,7 +653,7 @@ test_composition_no_props(void)
 	struct liftoff_output *output;
 	struct liftoff_layer *composition_layer, *layer_with_fb,
 			     *layer_without_fb;
-	struct liftoff_init_opts opts = { .punchthru_supported = false };
+	struct liftoff_init_opts opts = { .punchthru_supported = true };
 	drmModeAtomicReq *req;
 	int ret;
 
@@ -951,8 +666,10 @@ test_composition_no_props(void)
 	liftoff_device_register_all_planes(device);
 
 	output = liftoff_output_create(device, liftoff_mock_drm_crtc_id);
-	composition_layer = add_layer(output, 0, 0, 1920, 1080);
-	layer_with_fb = add_layer(output, 0, 0, 1920, 1080);
+	composition_layer = add_layer(output, 0, 0, 1920, 1080,
+				      DRM_FORMAT_ARGB8888);
+	layer_with_fb = add_layer(output, 0, 0, 1920, 1080,
+				  DRM_FORMAT_ARGB8888);
 	layer_without_fb = liftoff_layer_create(output);
 	(void)layer_with_fb;
 

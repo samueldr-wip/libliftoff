@@ -113,6 +113,7 @@ main(int argc, char *argv[])
 	struct dumb_fb fbs[MAX_LAYERS_LEN] = {0};
 	struct liftoff_layer *layers[MAX_LAYERS_LEN];
 	struct liftoff_plane *plane;
+	struct liftoff_init_opts opts = { .punchthru_supported = false };
 	drmModeAtomicReq *req;
 	int ret;
 	size_t i;
@@ -149,7 +150,7 @@ main(int argc, char *argv[])
 		return 1;
 	}
 
-	device = liftoff_device_create(drm_fd);
+	device = liftoff_device_create(drm_fd, &opts);
 	if (device == NULL) {
 		perror("liftoff_device_create");
 		return 1;

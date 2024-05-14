@@ -9,6 +9,8 @@
  * given number of page-flips */
 #define LIFTOFF_PRIORITY_PERIOD 60
 
+struct liftoff_alloc_strategy;
+
 struct liftoff_device {
 	int drm_fd;
 
@@ -22,6 +24,8 @@ struct liftoff_device {
 
 	int page_flip_counter;
 	int test_commit_counter;
+
+	const struct liftoff_alloc_strategy *alloc_strategy;
 };
 
 struct liftoff_output {
@@ -57,6 +61,8 @@ struct liftoff_layer {
 	/* prop added or force_composition changed */
 	bool changed;
 	drmModeFB2 fb_info, prev_fb_info; /* cached FB info */
+
+	bool is_underlay;
 };
 
 struct liftoff_layer_property {
@@ -92,7 +98,11 @@ struct liftoff_layer_property *
 layer_get_property(struct liftoff_layer *layer, const char *name);
 
 void
-layer_get_rect(struct liftoff_layer *layer, struct liftoff_rect *rect);
+layer_get_rect(struct liftoff_layer *layer, struct liftoff_rect *rect,
+	       bool get_prev);
+
+bool
+rect_intersects (struct liftoff_rect *a, struct liftoff_rect *b);
 
 bool
 layer_intersects(struct liftoff_layer *a, struct liftoff_layer *b);
