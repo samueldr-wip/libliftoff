@@ -947,8 +947,8 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	result.flags = flags;
 	result.planes_len = liftoff_list_length(&device->planes);
 
-	step.alloc = malloc(result.planes_len * sizeof(*step.alloc));
-	result.best = malloc(result.planes_len * sizeof(*result.best));
+	step.alloc = malloc(result.planes_len * sizeof(step.alloc[0]));
+	result.best = malloc(result.planes_len * sizeof(result.best[0]));
 	if (step.alloc == NULL || result.best == NULL) {
 		liftoff_log_errno(LIFTOFF_ERROR, "malloc");
 		return -ENOMEM;

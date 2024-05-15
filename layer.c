@@ -77,8 +77,8 @@ liftoff_layer_set_property(struct liftoff_layer *layer, const char *name,
 
 	prop = layer_get_property(layer, name);
 	if (prop == NULL) {
-		props = realloc(layer->props, (layer->props_len + 1)
-				* sizeof(struct liftoff_layer_property));
+		props = realloc(layer->props,
+				(layer->props_len + 1) * sizeof(props[0]));
 		if (props == NULL) {
 			liftoff_log_errno(LIFTOFF_ERROR, "realloc");
 			return -ENOMEM;
