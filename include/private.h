@@ -69,7 +69,6 @@ struct liftoff_plane {
 	uint32_t possible_crtcs;
 	uint32_t type;
 	int zpos; /* greater values mean closer to the eye */
-	/* TODO: formats */
 	struct liftoff_list link; /* liftoff_device.planes */
 
 	drmModePropertyRes **props;
