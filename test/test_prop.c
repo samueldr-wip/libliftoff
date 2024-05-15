@@ -277,6 +277,38 @@ test_unset_prop(void)
 	return 0;
 }
 
+static int
+test_ignored_prop(const char *name)
+{
+	struct liftoff_mock_plane *mock_plane;
+	int drm_fd;
+	struct liftoff_device *device;
+	struct liftoff_output *output;
+	struct liftoff_layer *layer;
+
+	mock_plane = liftoff_mock_drm_create_plane(DRM_PLANE_TYPE_PRIMARY);
+
+	drm_fd = liftoff_mock_drm_open();
+	device = liftoff_device_create(drm_fd);
+	assert(device != NULL);
+
+	liftoff_device_register_all_planes(device);
+
+	output = liftoff_output_create(device, liftoff_mock_drm_crtc_id);
+	layer = add_layer(output, 0, 0, 1920, 1080);
+	liftoff_layer_set_property(layer, name, 0);
+
+	liftoff_mock_plane_add_compatible_layer(mock_plane, layer);
+
+	commit(drm_fd, output);
+	assert(liftoff_mock_plane_get_layer(mock_plane) == layer);
+
+	liftoff_device_destroy(device);
+	close(drm_fd);
+
+	return 0;
+}
+
 struct single_format_modifier_blob {
 	struct drm_format_modifier_blob base;
 	uint32_t formats[1];
@@ -497,6 +529,8 @@ main(int argc, char *argv[])
 		return test_unset_prop();
 	} else if (strcmp(test_name, "in-formats") == 0) {
 		return test_in_formats();
+	} else if (strcmp(test_name, "fb-damage-clips") == 0) {
+		return test_ignored_prop("FB_DAMAGE_CLIPS");
 	} else if (strcmp(test_name, "range") == 0) {
 		return test_range();
 	} else if (strcmp(test_name, "signed-range") == 0) {

@@ -79,6 +79,7 @@ tests = {
 		'unmatched',
 		'unset',
 		'in-formats',
+		'fb-damage-clips',
 		'range',
 		'signed-range',
 		'enum',
