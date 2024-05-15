@@ -415,6 +415,31 @@ check_alloc_valid(struct liftoff_output *output, struct alloc_result *result,
 	return true;
 }
 
+static bool
+check_plane_output_compatible(struct liftoff_plane *plane, struct liftoff_output *output)
+{
+	return (plane->possible_crtcs & (1 << output->crtc_index)) != 0;
+}
+
+static int
+count_remaining_compatible_planes(struct liftoff_output *output,
+				  struct alloc_step *step)
+{
+	struct liftoff_list *link;
+	struct liftoff_plane *plane;
+	int remaining = 0;
+
+	for (link = step->plane_link; link != &output->device->planes; link = link->next) {
+		plane = liftoff_container_of(link, plane, link);
+		if (plane->layer == NULL &&
+		    check_plane_output_compatible(plane, output)) {
+			remaining++;
+		}
+	}
+
+	return remaining;
+}
+
 static int
 output_choose_layers(struct liftoff_output *output, struct alloc_result *result,
 		     struct alloc_step *step)
@@ -423,7 +448,7 @@ output_choose_layers(struct liftoff_output *output, struct alloc_result *result,
 	struct liftoff_plane *plane;
 	struct liftoff_layer *layer;
 	int cursor, ret;
-	size_t remaining_planes;
+	int remaining_planes;
 	struct alloc_step next_step = {0};
 
 	device = output->device;
@@ -444,21 +469,16 @@ output_choose_layers(struct liftoff_output *output, struct alloc_result *result,
 
 	plane = liftoff_container_of(step->plane_link, plane, link);
 
-	remaining_planes = result->planes_len - step->plane_idx;
-	if (result->best_score >= step->score + (int)remaining_planes) {
+	remaining_planes = count_remaining_compatible_planes(output, step);
+	if (result->best_score >= step->score + remaining_planes) {
 		/* Even if we find a layer for all remaining planes, we won't
 		 * find a better allocation. Give up. */
-		/* TODO: change remaining_planes to only count those whose
-		 * possible CRTC match and which aren't allocated */
 		return 0;
 	}
 
 	cursor = drmModeAtomicGetCursor(result->req);
 
-	if (plane->layer != NULL) {
-		goto skip;
-	}
-	if ((plane->possible_crtcs & (1 << output->crtc_index)) == 0) {
+	if (plane->layer != NULL || !check_plane_output_compatible(plane, output)) {
 		goto skip;
 	}
 
