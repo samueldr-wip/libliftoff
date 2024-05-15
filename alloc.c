@@ -835,7 +835,8 @@ update_layers_fb_info(struct liftoff_output *output)
 	 * re-created a completely different one which happens to have the same
 	 * FB ID. */
 	liftoff_list_for_each(layer, &output->layers, link) {
-		memset(&layer->fb_info, 0, sizeof(layer->fb_info));
+		layer->fb_info = (drmModeFB2){0};
+
 		layer_cache_fb_info(layer);
 		/* TODO: propagate error? */
 	}
@@ -964,7 +965,7 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	 * before any other plane. */
 
 	result.best_score = -1;
-	memset(result.best, 0, result.planes_len * sizeof(*result.best));
+	memset(result.best, 0, result.planes_len * sizeof(result.best[0]));
 	result.has_composition_layer = output->composition_layer != NULL;
 	result.non_composition_layers_len =
 		non_composition_layers_length(output);

@@ -87,7 +87,7 @@ liftoff_layer_set_property(struct liftoff_layer *layer, const char *name,
 		layer->props_len++;
 
 		prop = &layer->props[layer->props_len - 1];
-		memset(prop, 0, sizeof(*prop));
+		*prop = (struct liftoff_layer_property){0};
 		strncpy(prop->name, name, sizeof(prop->name) - 1);
 
 		layer->changed = true;
@@ -117,7 +117,7 @@ liftoff_layer_unset_property(struct liftoff_layer *layer, const char *name)
 	if (prop != last) {
 		*prop = *last;
 	}
-	memset(last, 0, sizeof(*last));
+	*last = (struct liftoff_layer_property){0};
 	layer->props_len--;
 
 	layer->changed = true;
@@ -262,7 +262,7 @@ layer_cache_fb_info(struct liftoff_layer *layer)
 
 	fb_id_prop = layer_get_property(layer, "FB_ID");
 	if (fb_id_prop == NULL || fb_id_prop->value == 0) {
-		memset(&layer->fb_info, 0, sizeof(layer->fb_info));
+		layer->fb_info = (drmModeFB2){0};
 		return 0;
 	}
 
