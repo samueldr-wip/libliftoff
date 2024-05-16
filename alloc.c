@@ -847,8 +847,8 @@ log_reuse(struct liftoff_output *output)
 {
 	if (output->alloc_reused_counter == 0) {
 		liftoff_log(LIFTOFF_DEBUG,
-			    "Reusing previous plane allocation on output %p",
-			    (void *)output);
+			    "Reusing previous plane allocation on output %"PRIu32,
+			    output->crtc_id);
 	}
 	output->alloc_reused_counter++;
 }
@@ -856,14 +856,14 @@ log_reuse(struct liftoff_output *output)
 static void
 log_no_reuse(struct liftoff_output *output)
 {
-	liftoff_log(LIFTOFF_DEBUG, "Computing plane allocation on output %p",
-		    (void *)output);
+	liftoff_log(LIFTOFF_DEBUG, "Computing plane allocation on output %"PRIu32,
+		    output->crtc_id);
 
 	if (output->alloc_reused_counter != 0) {
 		liftoff_log(LIFTOFF_DEBUG,
 			    "Stopped reusing previous plane allocation on "
-			    "output %p (had reused it %d times)",
-			    (void *)output, output->alloc_reused_counter);
+			    "output %"PRIu32" (had reused it %d times)",
+			    output->crtc_id, output->alloc_reused_counter);
 		output->alloc_reused_counter = 0;
 	}
 }
@@ -982,8 +982,9 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	}
 
 	liftoff_log(LIFTOFF_DEBUG,
-		    "Found plane allocation for output %p (score: %d, candidate planes: %zu, tests: %d):",
-		    (void *)output, result.best_score, candidate_planes,
+		    "Found plane allocation for output %"PRIu32" "
+		    "(score: %d, candidate planes: %zu, tests: %d):",
+		    output->crtc_id, result.best_score, candidate_planes,
 		    device->test_commit_counter);
 
 	/* Apply the best allocation */
