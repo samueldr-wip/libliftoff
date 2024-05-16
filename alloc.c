@@ -896,6 +896,7 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 	struct alloc_step step = {0};
 	size_t i, candidate_planes;
 	int ret;
+	bool found_layer;
 
 	device = output->device;
 
@@ -989,6 +990,7 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 
 	/* Apply the best allocation */
 	i = 0;
+	found_layer = false;
 	liftoff_list_for_each(plane, &device->planes, link) {
 		layer = result.best[i];
 		i++;
@@ -1003,8 +1005,10 @@ liftoff_output_apply(struct liftoff_output *output, drmModeAtomicReq *req,
 		assert(layer->plane == NULL);
 		plane->layer = layer;
 		layer->plane = plane;
+
+		found_layer = true;
 	}
-	if (i == 0) {
+	if (!found_layer) {
 		liftoff_log(LIFTOFF_DEBUG, "  (No layer has a plane)");
 	}
 
