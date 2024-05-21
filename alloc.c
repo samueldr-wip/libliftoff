@@ -115,15 +115,13 @@ static bool
 check_deadline(struct timespec start, int64_t timeout_ns)
 {
 	struct timespec now;
-	int64_t deadline;
 
 	if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
 		liftoff_log_errno(LIFTOFF_ERROR, "clock_gettime");
 		return false;
 	}
 
-	deadline = timespec_to_nsec(start) + timeout_ns;
-	return timespec_to_nsec(now) < deadline;
+	return timespec_to_nsec(now) - timeout_ns < timespec_to_nsec(start);
 }
 
 static void
