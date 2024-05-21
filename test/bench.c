@@ -67,6 +67,7 @@ main(int argc, char *argv[])
 	}
 
 	liftoff_log_set_priority(LIFTOFF_SILENT);
+	liftoff_mock_verbose = false;
 
 	for (i = 0; i < planes_len; i++) {
 		plane_type = i == 0 ? DRM_PLANE_TYPE_PRIMARY :

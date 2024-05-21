@@ -8,6 +8,7 @@
 
 extern uint32_t liftoff_mock_drm_crtc_id;
 extern size_t liftoff_mock_commit_count;
+extern bool liftoff_mock_verbose;
 
 /**
  * Some drivers require the primary plane to be enabled in order to light up a

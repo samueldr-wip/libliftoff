@@ -20,6 +20,7 @@
 uint32_t liftoff_mock_drm_crtc_id = DRM_MODE_OBJECT_CRTC & OBJ_TYPE_MASK;
 size_t liftoff_mock_commit_count = 0;
 bool liftoff_mock_require_primary_plane = false;
+bool liftoff_mock_verbose = true;
 
 struct liftoff_mock_plane {
 	uint32_t id;
@@ -347,6 +348,20 @@ liftoff_mock_plane_add_in_formats(struct liftoff_mock_plane *plane,
 }
 
 static void
+debug(const char *fmt, ...)
+{
+	va_list args;
+
+	if (!liftoff_mock_verbose) {
+		return;
+	}
+
+	va_start(args, fmt);
+	vfprintf(stderr, fmt, args);
+	va_end(args);
+}
+
+static void
 apply_atomic_req(drmModeAtomicReq *req)
 {
 	int i;
@@ -359,9 +374,8 @@ apply_atomic_req(drmModeAtomicReq *req)
 		plane = liftoff_mock_drm_get_plane(prop->obj_id);
 		prop_index = get_prop_index(prop->prop_id);
 		plane->prop_values[prop_index] = prop->value;
-		fprintf(stderr, "libdrm_mock: plane %"PRIu32": "
-			"setting %s = %"PRIu64"\n", plane->id,
-			plane_props[prop_index].name, prop->value);
+		debug("libdrm_mock: plane %"PRIu32": setting %s = %"PRIu64"\n",
+		      plane->id, plane_props[prop_index].name, prop->value);
 	}
 }
 
@@ -401,23 +415,23 @@ drmModeAtomicCommit(int fd, drmModeAtomicReq *req, uint32_t flags,
 		has_crtc = crtc_id != 0;
 
 		if (has_fb != has_crtc) {
-			fprintf(stderr, "libdrm_mock: plane %u: both FB_ID and "
-				"CRTC_ID must be set or unset together "
-				"(FB_ID = %"PRIu64", CRTC_ID = %"PRIu64")\n",
-				plane->id, fb_id, crtc_id);
+			debug("libdrm_mock: plane %u: both FB_ID and CRTC_ID "
+			      "must be set or unset together "
+			      "(FB_ID = %"PRIu64", CRTC_ID = %"PRIu64")\n",
+			      plane->id, fb_id, crtc_id);
 			return -EINVAL;
 		}
 
 		if (has_fb) {
 			if (crtc_id != liftoff_mock_drm_crtc_id) {
-				fprintf(stderr, "libdrm_mock: plane %u: "
-					"invalid CRTC_ID\n", plane->id);
+				debug("libdrm_mock: plane %u: invalid CRTC_ID\n",
+				      plane->id);
 				return -EINVAL;
 			}
 			layer = mock_fb_get_layer(fb_id);
 			if (layer == NULL) {
-				fprintf(stderr, "libdrm_mock: plane %u: "
-					"invalid FB_ID\n", plane->id);
+				debug("libdrm_mock: plane %u: invalid FB_ID\n",
+				      plane->id);
 				return -EINVAL;
 			}
 			found = false;
@@ -428,9 +442,9 @@ drmModeAtomicCommit(int fd, drmModeAtomicReq *req, uint32_t flags,
 				}
 			}
 			if (!found) {
-				fprintf(stderr, "libdrm_mock: plane %u: "
-					"layer %p is not compatible\n",
-					plane->id, (void *)layer);
+				debug("libdrm_mock: plane %u: "
+				      "layer %p is not compatible\n",
+				      plane->id, (void *)layer);
 				return -EINVAL;
 			}
 
@@ -443,8 +457,8 @@ drmModeAtomicCommit(int fd, drmModeAtomicReq *req, uint32_t flags,
 
 	if (liftoff_mock_require_primary_plane && any_plane_enabled &&
 	    !primary_plane_enabled) {
-		fprintf(stderr, "libdrm_mock: cannot light up CRTC without "
-			"enabling the primary plane\n");
+		debug("libdrm_mock: cannot light up CRTC without enabling the "
+		      "primary plane\n");
 		return -EINVAL;
 	}
 
