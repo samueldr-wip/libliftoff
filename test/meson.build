@@ -63,6 +63,8 @@ tests = {
 		'change-alpha',
 		'set-alpha-from-opaque',
 		'set-alpha-from-transparent',
+		'change-position-same-intersection',
+		'change-position-different-intersection',
 		'unset-alpha-to-opaque',
 		'unset-alpha-to-transparent',
 		'change-in-fence-fd',

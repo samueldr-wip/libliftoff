@@ -295,6 +295,33 @@ run_unset_alpha_to_transparent(struct context *ctx)
 }
 
 static void
+run_change_position_same_intersection(struct context *ctx)
+{
+
+	first_commit(ctx);
+	assert(liftoff_mock_plane_get_layer(ctx->mock_plane) == ctx->layer);
+
+	liftoff_layer_set_property(ctx->other_layer, "CRTC_X", 1);
+
+	second_commit(ctx, true);
+	assert(liftoff_mock_plane_get_layer(ctx->mock_plane) == ctx->layer);
+}
+
+static void
+run_change_position_different_intersection(struct context *ctx)
+{
+
+	first_commit(ctx);
+	assert(liftoff_mock_plane_get_layer(ctx->mock_plane) == ctx->layer);
+
+	liftoff_layer_set_property(ctx->other_layer, "CRTC_X", 2000);
+	liftoff_layer_set_property(ctx->other_layer, "CRTC_Y", 2000);
+
+	second_commit(ctx, false);
+	assert(liftoff_mock_plane_get_layer(ctx->mock_plane) == ctx->layer);
+}
+
+static void
 run_change_in_fence_fd(struct context *ctx)
 {
 	liftoff_layer_set_property(ctx->layer, "IN_FENCE_FD", 42);
@@ -334,6 +361,8 @@ static const struct test_case tests[] = {
 	{ .name = "change-alpha", .run = run_change_alpha },
 	{ .name = "set-alpha-from-opaque", .run = run_set_alpha_from_opaque },
 	{ .name = "set-alpha-from-transparent", .run = run_set_alpha_from_transparent },
+	{ .name = "change-position-same-intersection", .run = run_change_position_same_intersection },
+	{ .name = "change-position-different-intersection", .run = run_change_position_different_intersection },
 	{ .name = "unset-alpha-to-opaque", .run = run_unset_alpha_to_opaque },
 	{ .name = "unset-alpha-to-transparent", .run = run_unset_alpha_to_transparent },
 	{ .name = "change-in-fence-fd", .run = run_change_in_fence_fd },
