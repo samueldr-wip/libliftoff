@@ -204,7 +204,7 @@ static const struct test_case tests[] = {
 				.height = 1080,
 				.props = {{ "zpos", 1 }},
 				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
+				.result = NULL,
 			},
 			{
 				.width = 100,
@@ -236,7 +236,7 @@ static const struct test_case tests[] = {
 				.height = 1080,
 				.props = {{ "zpos", 1 }},
 				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
+				.result = NULL,
 			},
 			{
 				.width = 100,
@@ -265,7 +265,7 @@ static const struct test_case tests[] = {
 				.height = 1080,
 				.props = {{ "zpos", 1 }},
 				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
+				.result = NULL,
 			},
 			{
 				.width = 100,
@@ -331,7 +331,7 @@ static const struct test_case tests[] = {
 				.height = 1080,
 				.props = {{ "zpos", 1 }},
 				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
+				.result = NULL,
 			},
 			{
 				.width = 100,
@@ -446,7 +446,7 @@ static const struct test_case tests[] = {
 				.height = 1080,
 				.props = {{ "zpos", 1 }},
 				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
+				.result = NULL,
 			},
 			{
 				.width = 100,
@@ -488,7 +488,7 @@ static const struct test_case tests[] = {
 				.height = 1080,
 				.props = {{ "zpos", 1 }},
 				.compat = { PRIMARY_PLANE },
-				.result = PRIMARY_PLANE,
+				.result = NULL,
 			},
 			{
 				.width = 100,

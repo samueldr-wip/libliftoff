@@ -156,7 +156,7 @@ plane_step_init_next(struct alloc_step *step, struct alloc_step *prev,
 	if (layer != NULL) {
 		zpos_prop = layer_get_core_property(layer, LIFTOFF_PROP_ZPOS);
 	}
-	if (zpos_prop != NULL && plane->type != DRM_PLANE_TYPE_PRIMARY) {
+	if (zpos_prop != NULL) {
 		step->last_layer_zpos = zpos_prop->value;
 	} else {
 		step->last_layer_zpos = prev->last_layer_zpos;
@@ -249,9 +249,6 @@ has_allocated_layer_over(struct liftoff_output *output, struct alloc_step *step,
 		if (i >= (ssize_t)step->plane_idx) {
 			break;
 		}
-		if (other_plane->type == DRM_PLANE_TYPE_PRIMARY) {
-			continue;
-		}
 
 		other_layer = step->alloc[i];
 		if (other_layer == NULL) {
@@ -290,9 +287,6 @@ has_allocated_plane_under(struct liftoff_output *output,
 		i++;
 		if (i >= (ssize_t)step->plane_idx) {
 			break;
-		}
-		if (other_plane->type == DRM_PLANE_TYPE_PRIMARY) {
-			continue;
 		}
 		if (step->alloc[i] == NULL) {
 			continue;
@@ -364,7 +358,7 @@ check_layer_plane_compatible(struct alloc_step *step,
 		}
 	}
 
-	if (plane->type != DRM_PLANE_TYPE_PRIMARY &&
+	if (layer != layer->output->composition_layer &&
 	    has_composited_layer_over(output, step, layer)) {
 		liftoff_log(LIFTOFF_DEBUG,
 			    "%s Layer %p -> plane %"PRIu32": "
