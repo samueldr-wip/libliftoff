@@ -116,7 +116,13 @@ device_test_commit(struct liftoff_device *device, drmModeAtomicReq *req,
 	/* The kernel will return -EINVAL for invalid configuration, -ERANGE for
 	 * CRTC coords overflow, and -ENOSPC for invalid SRC coords. */
 	if (ret != 0 && ret != -EINVAL && ret != -ERANGE && ret != -ENOSPC) {
-		liftoff_log(LIFTOFF_ERROR, "drmModeAtomicCommit: %s",
+		/* EACCES can indicate that [ XXX the user isn't DRM master (?) ].
+		 * Downgrade error log to debug to prevent spew for users simply switching VT. */
+		// XXX had EPERM here at first
+		// XXX 61fd4c099a43b3b22dd48ccdbd76b4c3ab897d25 implies EPERM may also be relevant?
+		liftoff_log(ret == -EACCES ? LIFTOFF_DEBUG : LIFTOFF_ERROR,
+			    "drmModeAtomicCommit: (ret = %d) %s",
+			    ret,
 			    strerror(-ret));
 	}
 
